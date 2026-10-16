@@ -1,0 +1,149 @@
+---
+- name: Установка Prometheus
+  hosts: PROMETHEUS
+  become: yes
+
+  vars:
+    prometheus_version: 2.53.2
+    prometheus_dir: "prometheus-{{ prometheus_version }}.linux-amd64"
+
+  tasks:
+
+    - name: Обновить списки пакетов
+      apt:
+        update_cache: yes
+
+    - name: Создать системную группу prometheus
+      group:
+        name: prometheus
+        system: yes
+
+    - name: Создать системного пользователя prometheus
+      user:
+        name: prometheus
+        group: prometheus
+        shell: /sbin/nologin
+        system: yes
+        create_home: no
+
+    - name: Создать каталог /etc/prometheus
+      file:
+        path: /etc/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    - name: Создать каталог /var/lib/prometheus
+      file:
+        path: /var/lib/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    - name: Скачать архив Prometheus в /tmp
+      get_url:
+        url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/{{ prometheus_dir }}.tar.gz"
+        dest: "/tmp/{{ prometheus_dir }}.tar.gz"
+        timeout: 120
+
+    - name: Распаковать архив
+      unarchive:
+        src: "/tmp/{{ prometheus_dir }}.tar.gz"
+        dest: /tmp
+        remote_src: yes
+
+    - name: Скопировать программу prometheus в /usr/local/bin
+      copy:
+        src: "/tmp/{{ prometheus_dir }}/prometheus"
+        dest: /usr/local/bin/prometheus
+        remote_src: yes
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    - name: Скопировать программу promtool в /usr/local/bin
+      copy:
+        src: "/tmp/{{ prometheus_dir }}/promtool"
+        dest: /usr/local/bin/promtool
+        remote_src: yes
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    - name: Скопировать каталог consoles в /etc/prometheus
+      copy:
+        src: "/tmp/{{ prometheus_dir }}/consoles"
+        dest: /etc/prometheus/
+        remote_src: yes
+
+    - name: Скопировать каталог console_libraries в /etc/prometheus
+      copy:
+        src: "/tmp/{{ prometheus_dir }}/console_libraries"
+        dest: /etc/prometheus/
+        remote_src: yes
+
+    - name: Скопировать конфигурацию prometheus.yml в /etc/prometheus
+      copy:
+        src: "/tmp/{{ prometheus_dir }}/prometheus.yml"
+        dest: /etc/prometheus/prometheus.yml
+        remote_src: yes
+        mode: '0644'
+
+    - name: Сделать владельцем /etc/prometheus пользователя prometheus
+      file:
+        path: /etc/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        recurse: yes
+
+    - name: Сделать владельцем /var/lib/prometheus пользователя prometheus
+      file:
+        path: /var/lib/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        recurse: yes
+
+    - name: Создать службу prometheus (Systemd Unit)
+      copy:
+        src: files/prometheus.service
+        dest: /etc/systemd/system/prometheus.service
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Перечитать systemd, запустить prometheus и включить автозагрузку
+      systemd:
+        name: prometheus
+        daemon_reload: yes
+        state: started
+        enabled: yes
+
+    - name: Установить ufw
+      apt:
+        name: ufw
+        state: present
+
+    - name: Разрешить порт 9090 в брандмауэре UFW
+      community.general.ufw:
+        rule: allow
+        port: '9090'
+        proto: tcp
+
+    - name: Дождаться запуска Prometheus на порту 9090
+      wait_for:
+        port: 9090
+        timeout: 60
+
+    - name: Проверить, что Prometheus работает
+      uri:
+        url: http://localhost:9090/-/healthy
+        return_content: yes
+      register: health
+
+    - name: Показать результат проверки
+      debug:
+        var: health.content
