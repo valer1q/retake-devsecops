@@ -1,0 +1,56 @@
+---
+# Сценарий 4. Резервное копирование конфигурационных файлов
+# Запуск: ansible-playbook 04-backup.yml
+# Перед запуском должен быть выполнен сценарий 1 (нужны файлы nginx)
+
+- name: Резервное копирование конфигурационных файлов
+  hosts: NGINX
+  become: yes
+
+  vars:
+    # Каталог для резервной копии, в имени текущая дата (например 2026-10-15)
+    backup_dir: "/opt/backup/{{ ansible_date_time.date }}"
+
+  tasks:
+
+    # Создаём каталог для резервной копии, доступ только у root
+    - name: Создать каталог для резервной копии
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    # remote_src: yes - файл берётся с самого сервера, а не с управляющей машины
+    # mode: '0600' - копию может читать только root
+    - name: Сохранить /etc/hosts
+      copy:
+        src: /etc/hosts
+        dest: "{{ backup_dir }}/hosts"
+        remote_src: yes
+        mode: '0600'
+
+    # Копия настроек SSH-сервера
+    - name: Сохранить /etc/ssh/sshd_config
+      copy:
+        src: /etc/ssh/sshd_config
+        dest: "{{ backup_dir }}/sshd_config"
+        remote_src: yes
+        mode: '0600'
+
+    # Копия основного конфига nginx
+    - name: Сохранить /etc/nginx/nginx.conf
+      copy:
+        src: /etc/nginx/nginx.conf
+        dest: "{{ backup_dir }}/nginx.conf"
+        remote_src: yes
+        mode: '0600'
+
+    # Копия конфига сайта nginx
+    - name: Сохранить /etc/nginx/sites-available/default
+      copy:
+        src: /etc/nginx/sites-available/default
+        dest: "{{ backup_dir }}/nginx-site-default"
+        remote_src: yes
+        mode: '0600'

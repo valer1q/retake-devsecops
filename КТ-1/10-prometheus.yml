@@ -1,0 +1,47 @@
+---
+# Сценарий 10. Установка и настройка мониторинга Prometheus
+# Запуск: ansible-playbook 10-prometheus.yml
+# Веб-интерфейс: http://IP-сервера:9090
+
+- name: Установка и настройка Prometheus
+  hosts: MONITORING
+  become: yes
+
+  tasks:
+
+    # prometheus - сервер мониторинга, собирает и хранит метрики
+    # prometheus-node-exporter - агент, отдаёт метрики сервера (процессор, память, диск)
+    - name: Установить Prometheus и Node Exporter
+      apt:
+        name:
+          - prometheus
+          - prometheus-node-exporter
+        state: present
+        update_cache: yes
+
+    # Копируем свой файл конфигурации Prometheus
+    - name: Копировать конфигурацию Prometheus
+      copy:
+        src: files/prometheus.yml
+        dest: /etc/prometheus/prometheus.yml
+        owner: root
+        group: root
+        mode: '0644'
+
+    # Проверяем конфигурацию встроенной утилитой promtool
+    - name: Проверить конфигурацию Prometheus
+      command: promtool check config /etc/prometheus/prometheus.yml
+
+    # Перезапускаем Prometheus, чтобы применилась новая конфигурация
+    - name: Перезапустить Prometheus
+      service:
+        name: prometheus
+        state: restarted
+        enabled: yes
+
+    # Запускаем Node Exporter и включаем автозапуск
+    - name: Запустить Node Exporter
+      service:
+        name: prometheus-node-exporter
+        state: started
+        enabled: yes

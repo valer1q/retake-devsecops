@@ -1,0 +1,60 @@
+---
+# Сценарий 6. Настройка файрвола UFW
+# Запуск: ansible-playbook 06-firewall.yml
+# Модуль ufw входит в коллекцию community.general (ставится вместе с пакетом ansible)
+
+- name: Настройка файрвола
+  hosts: WEB
+  become: yes
+
+  tasks:
+
+    # Устанавливаем файрвол ufw
+    - name: Установить ufw
+      apt:
+        name: ufw
+        state: present
+        update_cache: yes
+
+    # Сначала разрешаем SSH, иначе после включения файрвола пропадёт доступ к серверу
+    - name: Разрешить SSH (порт 22)
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    # Разрешаем доступ к веб-серверу по HTTP
+    - name: Разрешить HTTP (порт 80)
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    # Разрешаем доступ к веб-серверу по HTTPS
+    - name: Разрешить HTTPS (порт 443)
+      community.general.ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    # Все остальные входящие подключения запрещены
+    - name: Запретить остальные входящие подключения
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+
+    # Исходящие подключения разрешены (нужны для обновлений и т.п.)
+    - name: Разрешить исходящие подключения
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+
+    # Включаем запись событий файрвола в журнал
+    - name: Включить журналирование
+      community.general.ufw:
+        logging: 'on'
+
+    # Включаем файрвол
+    - name: Включить ufw
+      community.general.ufw:
+        state: enabled

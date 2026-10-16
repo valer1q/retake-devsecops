@@ -1,0 +1,38 @@
+---
+# Сценарий 9. Замена строк в файле index.html с помощью lineinfile
+# Запуск: ansible-playbook 09-lineinfile.yml
+# Перед запуском должен быть выполнен сценарий 1 (он создаёт /var/www/html/index.html)
+
+- name: Замена строк в index.html
+  hosts: NGINX
+  become: yes
+
+  tasks:
+
+    # Ищем строку с тегом <title> и заменяем её целиком на новую
+    - name: Заменить заголовок вкладки title
+      lineinfile:
+        path: /var/www/html/index.html
+        regexp: '<title>'
+        line: '    <title>Страница изменена через lineinfile</title>'
+
+    # Ищем строку с тегом <h1> и заменяем её на новую
+    - name: Заменить заголовок h1
+      lineinfile:
+        path: /var/www/html/index.html
+        regexp: '<h1>'
+        line: '    <h1>Строки заменены с помощью Ansible lineinfile</h1>'
+
+    # Добавляем новую строку перед закрывающим тегом </body>
+    - name: Добавить новую строку
+      lineinfile:
+        path: /var/www/html/index.html
+        line: '    <p>Эта строка добавлена модулем lineinfile.</p>'
+        insertbefore: '</body>'
+
+    # Удаляем строку, в которой есть текст "будет удалена"
+    - name: Удалить лишнюю строку
+      lineinfile:
+        path: /var/www/html/index.html
+        regexp: 'будет удалена'
+        state: absent

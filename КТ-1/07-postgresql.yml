@@ -1,0 +1,46 @@
+---
+# Сценарий 7. Установка и настройка базы данных PostgreSQL
+# Запуск: ansible-playbook 07-postgresql.yml
+# Модули postgresql_user и postgresql_db входят в коллекцию community.postgresql
+
+- name: Установка и настройка PostgreSQL
+  hosts: DB
+  become: yes
+
+  tasks:
+
+    # postgresql - сервер базы данных
+    # python3-psycopg2 - библиотека, через которую Ansible управляет PostgreSQL
+    # acl - нужен, чтобы Ansible мог выполнять задачи от имени пользователя postgres
+    - name: Установить PostgreSQL и нужные пакеты
+      apt:
+        name:
+          - postgresql
+          - python3-psycopg2
+          - acl
+        state: present
+        update_cache: yes
+
+    # Запускаем сервер БД и включаем автозапуск
+    - name: Запустить PostgreSQL
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    # Создаём пользователя БД appuser с паролем app123
+    # become_user: postgres - команда выполняется от системного пользователя postgres
+    - name: Создать пользователя базы данных appuser
+      community.postgresql.postgresql_user:
+        name: appuser
+        password: app123
+      become: yes
+      become_user: postgres
+
+    # Создаём базу данных appdb, владелец appuser
+    - name: Создать базу данных appdb
+      community.postgresql.postgresql_db:
+        name: appdb
+        owner: appuser
+      become: yes
+      become_user: postgres
