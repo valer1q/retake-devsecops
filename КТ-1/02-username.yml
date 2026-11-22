@@ -1,0 +1,17 @@
+# Создаём пользователя и добавляем его в административные группы.
+- name: Add administrative user
+  hosts: all
+  become: true
+  vars:
+    user_name: newadmin
+    user_password: '123'
+  tasks:
+    # Создаём пользователя с домашним каталогом.
+    - name: Create user
+      ansible.builtin.user:
+        name: "{{ user_name }}"
+        groups: root,sudo
+        append: true
+        password: "{{ user_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        create_home: true

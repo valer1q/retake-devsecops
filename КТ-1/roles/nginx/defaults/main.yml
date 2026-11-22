@@ -1,0 +1,3 @@
+# Значения роли Nginx по умолчанию.
+nginx_package: nginx
+nginx_service: nginx

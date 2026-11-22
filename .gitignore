@@ -1,0 +1,4 @@
+.env
+.env.txt
+*.key
+*.pem

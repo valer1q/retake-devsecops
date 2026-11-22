@@ -1,41 +1,30 @@
----
-# Сценарий 8. Деплой приложения из репозитория Git
-# Запуск: ansible-playbook 08-git-deploy.yml
-# Сайт будет доступен по адресу http://IP-сервера/app/
-
-- name: Деплой сайта из Git-репозитория
-  hosts: NGINX
-  become: yes
-
+# Клонируем приложение из Git-репозитория.
+- name: Deploy application
+  hosts: web
+  become: true
   vars:
-    # Адрес репозитория с приложением (простой статический сайт)
-    repo_url: https://github.com/mdn/beginner-html-site-styled.git
-    # Куда разворачивать приложение
-    app_dir: /var/www/html/app
-
+    repository_url: https://github.com/valer1q/prilojeniye.git
+    application_dir: /opt/example-app
   tasks:
-
-    # Устанавливаем git для клонирования и nginx для раздачи сайта
-    - name: Установить git и nginx
-      apt:
-        name:
-          - git
-          - nginx
+    # Устанавливаем Git.
+    - name: Install Git
+      ansible.builtin.apt:
+        name: git
         state: present
-        update_cache: yes
-
-    # Клонируем репозиторий. При повторном запуске скачиваются новые изменения.
-    # force: yes - локальные изменения на сервере будут перезаписаны
-    - name: Клонировать репозиторий
-      git:
-        repo: "{{ repo_url }}"
-        dest: "{{ app_dir }}"
+        update_cache: true
+    # Клонируем или обновляем приложение.
+    - name: Clone repository
+      ansible.builtin.git:
+        repo: "{{ repository_url }}"
+        dest: "{{ application_dir }}"
         version: main
-        force: yes
-
-    # Убеждаемся, что nginx запущен и стоит в автозапуске
-    - name: Запустить nginx
-      service:
-        name: nginx
-        state: started
-        enabled: yes
+        update: true
+    # Публикуем главную страницу приложения через Nginx.
+    - name: Publish application page
+      ansible.builtin.copy:
+        src: "{{ application_dir }}/index.html"
+        dest: /var/www/html/index.html
+        remote_src: true
+        owner: www-data
+        group: www-data
+        mode: '0644'

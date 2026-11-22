@@ -1,0 +1,11 @@
+# Запускаем и включаем службу Nginx.
+- name: Manage service
+  hosts: web
+  become: true
+  tasks:
+    # Обеспечиваем запущенное состояние службы.
+    - name: Ensure nginx is running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true

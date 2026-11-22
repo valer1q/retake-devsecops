@@ -1,0 +1,17 @@
+# Устанавливаем и запускаем Prometheus.
+- name: Install Prometheus
+  hosts: all
+  become: true
+  tasks:
+    # Устанавливаем пакет Prometheus.
+    - name: Install Prometheus package
+      ansible.builtin.apt:
+        name: prometheus
+        state: present
+        update_cache: true
+    # Включаем автозапуск и запускаем сервис.
+    - name: Start Prometheus
+      ansible.builtin.service:
+        name: prometheus
+        state: started
+        enabled: true

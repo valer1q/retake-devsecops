@@ -1,0 +1,12 @@
+# Устанавливаем пакет Nginx.
+- name: Install nginx
+  ansible.builtin.apt:
+    name: "{{ nginx_package }}"
+    state: present
+    update_cache: true
+# Запускаем Nginx и включаем автозапуск.
+- name: Start nginx
+  ansible.builtin.service:
+    name: "{{ nginx_service }}"
+    state: started
+    enabled: true

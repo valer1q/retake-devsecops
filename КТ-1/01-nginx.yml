@@ -1,51 +1,6 @@
----
-# Сценарий 1. Установка и настройка веб-сервера Nginx
-# Запуск: ansible-playbook 01-nginx.yml
-
-- name: Установка и настройка Nginx
-  hosts: NGINX
-  become: yes
-
-  tasks:
-
-    # Обновляем список пакетов и устанавливаем nginx
-    - name: Установить Nginx
-      apt:
-        name: nginx
-        state: present
-        update_cache: yes
-
-    # Копируем свою стартовую страницу сайта из каталога files
-    - name: Копировать страницу index.html
-      copy:
-        src: files/index.html
-        dest: /var/www/html/index.html
-        owner: www-data
-        group: www-data
-        mode: '0644'
-
-    # Заменяем стандартную конфигурацию сайта на свою
-    # (скрыта версия nginx, закрыт доступ к скрытым файлам)
-    - name: Копировать конфигурацию сайта
-      copy:
-        src: files/nginx-default.conf
-        dest: /etc/nginx/sites-available/default
-        owner: root
-        group: root
-        mode: '0644'
-
-    # Проверяем, что в конфигурации nginx нет ошибок
-    - name: Проверить конфигурацию Nginx
-      command: nginx -t
-
-    # Перезапускаем nginx, чтобы применилась новая конфигурация
-    - name: Перезапустить Nginx
-      service:
-        name: nginx
-        state: restarted
-
-    # Включаем автозапуск nginx при загрузке системы
-    - name: Включить автозапуск Nginx
-      service:
-        name: nginx
-        enabled: yes
+# Подключаем роль установки и настройки Nginx.
+- name: Install web server
+  hosts: web
+  become: true
+  roles:
+    - nginx

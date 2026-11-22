@@ -1,0 +1,18 @@
+# Обновляем пакеты и перезапускаем сервер.
+- name: Update system
+  hosts: all
+  become: true
+  tasks:
+    # Обновляем индекс пакетов.
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+    # Устанавливаем доступные обновления.
+    - name: Upgrade packages
+      ansible.builtin.apt:
+        name: '*'
+        state: latest
+    # Перезапускаем целевой сервер.
+    - name: Reboot server
+      ansible.builtin.reboot:
+        reboot_timeout: 600
