@@ -1,0 +1,132 @@
+---
+# Устанавливаем Prometheus и настраиваем его как systemd-службу.
+- name: Install Prometheus monitoring system
+  hosts: all
+  become: true
+  vars:
+    prometheus_version: 2.53.2
+    prometheus_archive: "prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    prometheus_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/{{ prometheus_archive }}"
+    prometheus_tmp_dir: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64"
+  tasks:
+    # Обновляем списки пакетов.
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    # Создаём системную группу Prometheus.
+    - name: Create prometheus group
+      ansible.builtin.group:
+        name: prometheus
+        system: true
+
+    # Создаём системного пользователя без возможности входа.
+    - name: Create prometheus user
+      ansible.builtin.user:
+        name: prometheus
+        group: prometheus
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    # Создаём каталог конфигурации.
+    - name: Create configuration directory
+      ansible.builtin.file:
+        path: /etc/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    # Создаём каталог временных рядов.
+    - name: Create data directory
+      ansible.builtin.file:
+        path: /var/lib/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+
+    # Скачиваем официальный архив Prometheus.
+    - name: Download Prometheus archive
+      ansible.builtin.get_url:
+        url: "{{ prometheus_url }}"
+        dest: "/tmp/{{ prometheus_archive }}"
+        mode: '0644'
+
+    # Распаковываем архив.
+    - name: Extract Prometheus archive
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ prometheus_archive }}"
+        dest: /tmp
+        remote_src: true
+        creates: "{{ prometheus_tmp_dir }}/prometheus"
+
+    # Устанавливаем исполняемые файлы.
+    - name: Install Prometheus binaries
+      ansible.builtin.copy:
+        src: "{{ prometheus_tmp_dir }}/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        remote_src: true
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+      loop:
+        - prometheus
+        - promtool
+
+    # Копируем веб-консоли и библиотеки.
+    - name: Install Prometheus console files
+      ansible.builtin.copy:
+        src: "{{ prometheus_tmp_dir }}/{{ item }}"
+        dest: "/etc/prometheus/{{ item }}"
+        remote_src: true
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+      loop:
+        - consoles
+        - console_libraries
+
+    # Устанавливаем базовую конфигурацию Prometheus.
+    - name: Install Prometheus configuration
+      ansible.builtin.copy:
+        src: "{{ prometheus_tmp_dir }}/prometheus.yml"
+        dest: /etc/prometheus/prometheus.yml
+        remote_src: true
+        owner: prometheus
+        group: prometheus
+        mode: '0644'
+
+    # Устанавливаем systemd unit-файл.
+    - name: Install Prometheus systemd unit
+      ansible.builtin.template:
+        src: prometheus.service.j2
+        dest: /etc/systemd/system/prometheus.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart Prometheus
+
+    # Разрешаем порт Prometheus в UFW.
+    - name: Allow Prometheus port
+      community.general.ufw:
+        rule: allow
+        port: '9090'
+        proto: tcp
+
+    # Запускаем Prometheus и включаем автозапуск.
+    - name: Enable and start Prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: started
+        enabled: true
+        daemon_reload: true
+
+  handlers:
+    # Перезапускаем службу после изменения systemd unit-файла.
+    - name: Restart Prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: restarted
+        daemon_reload: true
