@@ -1,0 +1,91 @@
+---
+# Устанавливаем Docker и создаём заданное количество контейнеров.
+- name: Install Docker and create containers
+  hosts: all
+  become: true
+  vars:
+    # Количество контейнеров.
+    container_count: 4
+    # Префикс имён контейнеров.
+    default_container_name: docker
+    # Образ из Docker Hub.
+    default_container_image: ubuntu
+    # Команда контейнера.
+    default_container_command: sleep 1d
+
+  tasks:
+    # Устанавливаем aptitude.
+    - name: Install aptitude
+      ansible.builtin.apt:
+        name: aptitude
+        state: latest
+        update_cache: true
+
+    # Устанавливаем системные зависимости.
+    - name: Install required system packages
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+          - virtualenv
+          - python3-setuptools
+        state: latest
+        update_cache: true
+
+    # Загружаем ключ официального репозитория Docker.
+    - name: Add Docker GPG apt key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    # Добавляем официальный репозиторий Docker для Ubuntu Noble.
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable"
+        filename: docker
+        state: present
+        update_cache: true
+
+    # Устанавливаем Docker Engine и CLI.
+    - name: Install Docker packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    # Запускаем Docker и включаем автозапуск.
+    - name: Ensure Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    # Устанавливаем Python-модуль, необходимый коллекции community.docker.
+    - name: Install Docker module for Python
+      ansible.builtin.pip:
+        name: docker
+        extra_args: --break-system-packages
+
+    # Загружаем образ ubuntu из Docker Hub.
+    - name: Pull default Docker image
+      community.docker.docker_image:
+        name: "{{ default_container_image }}"
+        source: pull
+
+    # Создаём контейнеры с заданными именами, образом и командой.
+    - name: Create default containers
+      community.docker.docker_container:
+        name: "{{ default_container_name }}{{ item }}"
+        image: "{{ default_container_image }}"
+        command: "{{ default_container_command }}"
+        state: started
+      loop: "{{ range(1, container_count + 1) | list }}"

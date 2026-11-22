@@ -1,6 +1,2 @@
-[DOCKER]
-fio-7 ansible_host=10.0.2.107 owner=fio-7-sysadmin
-
-[DOCKER:vars]
-ansible_user=sysadmin
-ansible_ssh_private_key_file=~/.ssh/id_rsa
+[servers]
+server1 ansible_host=72.56.79.52 ansible_user=root
