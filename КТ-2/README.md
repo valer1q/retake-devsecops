@@ -1,50 +1,76 @@
-# КТ-2. Установка Docker и создание контейнеров через Ansible
+# Отчёт по контрольной точке №2
 
-## Состав
+## Тема
 
-- `hosts` — inventory с целевым сервером.
-- `ansible.cfg` — настройки Ansible.
-- `playbook.yml` — установка Docker, Python-модуля Docker, загрузка образа Ubuntu и создание контейнеров.
+Установка Docker и создание контейнеров с помощью Ansible Playbook.
 
-## Установка зависимостей
+## Цель работы
 
-На управляющей машине:
+Автоматизировать установку Docker, загрузку образа Ubuntu и создание четырёх контейнеров с одинаковыми параметрами.
 
-```bash
-sudo apt update
-sudo apt install ansible-core sshpass python3-passlib -y
-ansible-galaxy collection install community.docker
-```
+## Среда выполнения
 
-## Проверка и запуск
+- Ubuntu Server 24.04;
+- Ansible Core 2.16.3;
+- Docker Engine;
+- образ `ubuntu:latest`;
+- каталог проекта: `/root/КТ-2`.
 
-```bash
-ansible all -m ping
-ansible-playbook playbook.yml
-```
+## Состав проекта
 
-Проверка синтаксиса:
+- `hosts` — inventory;
+- `hosts-local` — локальный inventory для запуска на control node;
+- `ansible.cfg` — настройки Ansible;
+- `playbook.yml` — основной Playbook;
+- `README.md` — инструкции запуска и проверки;
+- `report/` — скриншоты выполнения.
 
-```bash
-ansible-playbook --syntax-check playbook.yml
-```
+## Выполненные действия
 
-Ожидаемый результат запуска — `failed=0` и четыре изменённых контейнера.
+`playbook.yml` устанавливает aptitude и системные зависимости, добавляет ключ и официальный репозиторий Docker, устанавливает Docker Engine, запускает службу, устанавливает Python-модуль Docker, загружает образ `ubuntu` и создаёт четыре контейнера `docker1`–`docker4` с командой `sleep 1d`.
 
-## Проверка на сервере
+## Проверка синтаксиса
 
 ```bash
-docker ps -a
+ansible-playbook -i hosts-local --syntax-check playbook.yml
 ```
 
-Должны присутствовать контейнеры `docker1`, `docker2`, `docker3`, `docker4` на основе образа `ubuntu` с командой `sleep 1d`.
+Результат: `playbook: playbook.yml`.
 
-Дополнительные проверки:
+![Проверка синтаксиса](report/screenshot-01.png)
+
+## Запуск Playbook
 
 ```bash
-docker image ls ubuntu
-docker inspect docker1 --format '{{.Config.Cmd}}'
-systemctl is-active docker
+ansible-playbook -i hosts-local playbook.yml
 ```
 
-Для отчёта нужны скриншоты проверки синтаксиса, успешного `PLAY RECAP` и вывода `docker ps -a`.
+Итоговый результат: `ok=10 changed=0 unreachable=0 failed=0`.
+
+![Успешный запуск Playbook](report/screenshot-02.png)
+
+## Проверка контейнеров
+
+```bash
+docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Command}}\t{{.Status}}'
+```
+
+Созданы и запущены четыре контейнера на основе `ubuntu` с командой `sleep 1d`.
+
+![Список контейнеров](report/screenshot-03.png)
+
+## Проверка службы Docker
+
+Служба Docker имеет состояние `active (running)` и включённый автозапуск.
+
+![Статус Docker](report/screenshot-04.png)
+
+## Проверка образа
+
+Образ `ubuntu:latest` загружен локально и используется контейнерами.
+
+![Образ Ubuntu](report/screenshot-05.png)
+
+## Вывод
+
+Playbook успешно устанавливает Docker, загружает образ Ubuntu и создаёт четыре работающих контейнера с заданными именами и командой запуска. Ошибок выполнения нет: `failed=0`, `unreachable=0`.
