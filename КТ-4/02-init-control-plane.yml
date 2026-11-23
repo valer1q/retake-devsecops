@@ -1,0 +1,28 @@
+---
+# Инициализируем control plane на master-ноде.
+- name: Initialize Kubernetes control plane
+  hosts: master
+  become: true
+  tasks:
+    # Запускаем kubeadm с внутренним IP master.
+    - name: Run kubeadm init
+      ansible.builtin.command: kubeadm init --apiserver-advertise-address=192.168.0.4 --pod-network-cidr=10.244.0.0/16
+      args:
+        creates: /etc/kubernetes/admin.conf
+    # Настраиваем kubectl для root.
+    - name: Create kubeconfig directory
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
+        mode: '0700'
+    - name: Copy admin kubeconfig
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: true
+        mode: '0600'
+    # Устанавливаем Flannel CNI.
+    - name: Install Flannel network
+      ansible.builtin.command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/v0.25.5/Documentation/kube-flannel.yml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf

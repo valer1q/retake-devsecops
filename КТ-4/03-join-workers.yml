@@ -1,0 +1,19 @@
+---
+# Добавляем worker-ноды в кластер.
+- name: Join worker nodes
+  hosts: master
+  become: true
+  tasks:
+    # Получаем команду присоединения.
+    - name: Create join command
+      ansible.builtin.command: kubeadm token create --print-join-command
+      register: join_command
+      changed_when: false
+    # Передаём команду worker-нодам.
+    - name: Join workers
+      ansible.builtin.command: "{{ join_command.stdout }}"
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['workers'] }}"
+      become: true
+      args:
+        creates: /etc/kubernetes/kubelet.conf

@@ -1,4 +1,5 @@
 .env
 .env.txt
+inf.txt
 *.key
 *.pem

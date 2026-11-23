@@ -1,0 +1,20 @@
+---
+# Разворачиваем nginx через Deployment и Service.
+- name: Deploy nginx application
+  hosts: master
+  become: true
+  tasks:
+    # Создаём Deployment с тремя репликами.
+    - name: Create nginx deployment
+      ansible.builtin.shell: kubectl create deployment nginx --image=nginx --replicas=6 --dry-run=client -o yaml | kubectl apply -f -
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+    # Публикуем Deployment через NodePort.
+    - name: Expose nginx service
+      ansible.builtin.command: kubectl expose deployment nginx --port=80 --type=NodePort
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: expose_result
+      failed_when: expose_result.rc != 0 and 'already exists' not in (expose_result.stderr | lower)
+      changed_when: expose_result.rc == 0
+

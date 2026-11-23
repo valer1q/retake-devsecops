@@ -1,107 +1,95 @@
 ---
-- name: Подготовка нод кластера
-  hosts: K8S
-  become: yes
-
+# Подготавливаем все узлы Kubernetes.
+- name: Prepare Kubernetes nodes
+  hosts: k8s
+  become: true
   tasks:
-
-    - name: Установить wget, curl, bridge-utils и conntrack
-      apt:
-        name:
-          - wget
-          - curl
-          - ca-certificates
-          - bridge-utils
-          - conntrack
-        state: present
-        update_cache: yes
-
-    - name: Прописать имя хоста в /etc/hosts
-      lineinfile:
-        path: /etc/hosts
-        line: "127.0.1.1 {{ inventory_hostname }}"
-
-    - name: Задать имя хоста
-      hostname:
-        name: "{{ inventory_hostname }}"
-
-    - name: Скачать скрипт установки Docker
-      get_url:
-        url: https://get.docker.com
-        dest: /root/get-docker.sh
-        mode: '0755'
-        timeout: 120
-
-    - name: Установить Docker
-      command: sh /root/get-docker.sh
-      args:
-        creates: /usr/bin/docker
-
-    - name: Запустить Docker
-      service:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Отключить swap
-      command: swapoff -a
-
-    - name: Отключить swap после перезагрузки
-      replace:
+    # Отключаем swap, необходимый для работы kubelet.
+    - name: Disable swap immediately
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+    # Удаляем swap из fstab.
+    - name: Disable swap in fstab
+      ansible.builtin.replace:
         path: /etc/fstab
-        regexp: '^([^#].*\sswap\s.*)$'
-        replace: '# \1'
-
-    - name: Загрузить модуль ядра overlay
-      community.general.modprobe:
-        name: overlay
-        state: present
-
-    - name: Загрузить модуль ядра br_netfilter
-      community.general.modprobe:
-        name: br_netfilter
-        state: present
-
-    - name: Загружать модули при старте системы
-      copy:
-        content: |
-          overlay
-          br_netfilter
+        regexp: '^([^#].*\sswap\s+sw\s+.*)$'
+        replace: '# \\1'
+    # Загружаем модули ядра контейнерной сети.
+    - name: Configure kernel modules
+      ansible.builtin.copy:
         dest: /etc/modules-load.d/k8s.conf
+        content: "overlay\nbr_netfilter\n"
         mode: '0644'
-
-    - name: Включить net.bridge.bridge-nf-call-iptables
-      ansible.posix.sysctl:
-        name: net.bridge.bridge-nf-call-iptables
-        value: '1'
-        sysctl_file: /etc/sysctl.d/k8s.conf
-        reload: yes
-
-    - name: Включить net.bridge.bridge-nf-call-ip6tables
-      ansible.posix.sysctl:
-        name: net.bridge.bridge-nf-call-ip6tables
-        value: '1'
-        sysctl_file: /etc/sysctl.d/k8s.conf
-        reload: yes
-
-    - name: Включить net.ipv4.ip_forward
-      ansible.posix.sysctl:
-        name: net.ipv4.ip_forward
-        value: '1'
-        sysctl_file: /etc/sysctl.d/k8s.conf
-        reload: yes
-
-    - name: Создать стандартный конфиг containerd
-      shell: containerd config default > /etc/containerd/config.toml
-
-    - name: Включить SystemdCgroup в containerd
-      replace:
+    - name: Load overlay module
+      ansible.builtin.modprobe:
+        name: overlay
+    - name: Load br_netfilter module
+      ansible.builtin.modprobe:
+        name: br_netfilter
+    # Настраиваем параметры сетевого стека.
+    - name: Configure Kubernetes sysctl values
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/k8s.conf
+        content: "net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\n"
+        mode: '0644'
+    - name: Apply Kubernetes sysctl values
+      ansible.builtin.command: sysctl --system
+      changed_when: false
+    # Устанавливаем containerd и инструменты репозитория.
+    - name: Install container runtime prerequisites
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, gpg, containerd]
+        state: present
+        update_cache: true
+    # Создаём конфигурацию containerd.
+    - name: Create containerd configuration directory
+      ansible.builtin.file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+    - name: Generate containerd configuration
+      ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+    # Включаем systemd cgroup driver.
+    - name: Configure systemd cgroup driver
+      ansible.builtin.replace:
         path: /etc/containerd/config.toml
         regexp: 'SystemdCgroup = false'
         replace: 'SystemdCgroup = true'
-
-    - name: Перезапустить containerd
-      service:
+    - name: Restart containerd
+      ansible.builtin.service:
         name: containerd
         state: restarted
-        enabled: yes
+        enabled: true
+    # Добавляем репозиторий Kubernetes.
+    - name: Create Kubernetes keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+    - name: Download Kubernetes repository key
+      ansible.builtin.shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    - name: Add Kubernetes repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+        filename: kubernetes
+        state: present
+    # Устанавливаем kubeadm, kubelet и kubectl.
+    - name: Install Kubernetes packages
+      ansible.builtin.apt:
+        name: [kubelet, kubeadm, kubectl]
+        state: present
+        update_cache: true
+    - name: Hold Kubernetes packages
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: [kubelet, kubeadm, kubectl]
+    - name: Enable kubelet
+      ansible.builtin.service:
+        name: kubelet
+        enabled: true
+        state: started
